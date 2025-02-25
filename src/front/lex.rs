@@ -124,7 +124,7 @@ impl<'input> Lexer<'input> {
 
         let token = Token {
             kind,
-            text: &self.input[self.pos..(self.pos + len)]
+            text: &self.input[self.pos..(self.pos + len)],
         };
 
         self.pos += len;

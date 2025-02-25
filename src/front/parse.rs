@@ -23,7 +23,7 @@ type ParseResult<T> = Result<T, ParseError>;
 pub fn parse(input: &str) -> Result<Program, ParseError> {
     let mut parser = Parser::new(input);
     let program = parser.parse_program()?;
-    if ! parser.tokens.is_empty() {
+    if !parser.tokens.is_empty() {
         Err(ParseError(
             "There are still leftover tokens after reading a whole program.".to_string(),
         ))
@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
     fn parse_program(&mut self) -> ParseResult<Program> {
         let mut stmts = vec![];
 
-        while ! self.tokens.is_empty() {
+        while !self.tokens.is_empty() {
             stmts.push(self.parse_stmt()?);
         }
 
@@ -99,7 +99,7 @@ impl<'a> Parser<'a> {
                 let lhs = id(self.expect(TokenKind::Id)?.text);
                 let rhs = self.parse_expr()?;
                 Ok(Stmt::Assign(lhs, rhs))
-            },
+            }
             TokenKind::Print => Ok(Stmt::Print(self.parse_expr()?)),
             TokenKind::Read => Ok(Stmt::Read(id(self.expect(TokenKind::Id)?.text))),
             TokenKind::If => {
@@ -107,8 +107,11 @@ impl<'a> Parser<'a> {
                 let tt = self.parse_block()?;
                 let ff = self.parse_block()?;
                 Ok(Stmt::If { guard, tt, ff })
-            },
-            _ => Err(ParseError(format!("Expected start of a statement, found {}", tok.text)))
+            }
+            _ => Err(ParseError(format!(
+                "Expected start of a statement, found {}",
+                tok.text
+            ))),
         }
     }
 
@@ -116,7 +119,7 @@ impl<'a> Parser<'a> {
         let mut stmts = vec![];
 
         self.expect(TokenKind::LBrace)?;
-        while ! self.eat(TokenKind::RBrace) {
+        while !self.eat(TokenKind::RBrace) {
             stmts.push(self.parse_stmt()?);
         }
 
@@ -137,7 +140,10 @@ impl<'a> Parser<'a> {
             TokenKind::Div => self.parse_binop(BOp::Div),
             TokenKind::Lt => self.parse_binop(BOp::Lt),
             TokenKind::Tilde => Ok(Negate(Box::new(self.parse_expr()?))),
-            _ => Err(ParseError(format!("Expected start of a statement, found {}", tok.text)))
+            _ => Err(ParseError(format!(
+                "Expected start of a statement, found {}",
+                tok.text
+            ))),
         }
     }
 
@@ -240,7 +246,11 @@ mod tests {
     fn complex_expr() {
         assert_eq!(
             parse("$print * + x 3 / ~ 7 y").unwrap().stmts,
-            vec![Print(bop(Mul, bop(Add, var("x"), Const(3)),  bop(Div, negate(Const(7)), var("y"))))]
+            vec![Print(bop(
+                Mul,
+                bop(Add, var("x"), Const(3)),
+                bop(Div, negate(Const(7)), var("y"))
+            ))]
         );
     }
 
@@ -260,19 +270,37 @@ mod tests {
     fn if_test() {
         assert_eq!(
             parse("$if x {} {}").unwrap().stmts,
-            vec![If { guard: var("x"), tt: vec![], ff: vec![] }]
+            vec![If {
+                guard: var("x"),
+                tt: vec![],
+                ff: vec![]
+            }]
         );
         assert_eq!(
             parse("$if x {$print 0} {:= x 3}").unwrap().stmts,
-            vec![If { guard: var("x"), tt: vec![Print(Const(0))], ff: vec![Assign(id("x"), Const(3))] }]
+            vec![If {
+                guard: var("x"),
+                tt: vec![Print(Const(0))],
+                ff: vec![Assign(id("x"), Const(3))]
+            }]
         );
         assert_eq!(
-            parse("$if x {$print 0 $read x} {:= x 3 := y x}").unwrap().stmts,
-            vec![If { guard: var("x"), tt: vec![Print(Const(0)), Read(id("x"))], ff: vec![Assign(id("x"), Const(3)), Assign(id("y"), var("x"))] }]
+            parse("$if x {$print 0 $read x} {:= x 3 := y x}")
+                .unwrap()
+                .stmts,
+            vec![If {
+                guard: var("x"),
+                tt: vec![Print(Const(0)), Read(id("x"))],
+                ff: vec![Assign(id("x"), Const(3)), Assign(id("y"), var("x"))]
+            }]
         );
         assert_eq!(
             parse("$if < x y {$print 0} {:= x 3}").unwrap().stmts,
-            vec![If { guard: bop(Lt, var("x"), var("y")), tt: vec![Print(Const(0))], ff: vec![Assign(id("x"), Const(3))] }]
+            vec![If {
+                guard: bop(Lt, var("x"), var("y")),
+                tt: vec![Print(Const(0))],
+                ff: vec![Assign(id("x"), Const(3))]
+            }]
         );
     }
 
