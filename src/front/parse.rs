@@ -6,6 +6,7 @@ use derive_more::derive::Display;
 
 use super::ast::*;
 use super::lex::*;
+use crate::common::id;
 
 #[derive(Display)]
 #[display("Parse error: {}", self.0)]
@@ -22,7 +23,7 @@ type ParseResult<T> = Result<T, ParseError>;
 pub fn parse(input: &str) -> Result<Program, ParseError> {
     let mut parser = Parser::new(input);
     let program = parser.parse_program()?;
-    if parser.tokens.is_empty() {
+    if ! parser.tokens.is_empty() {
         Err(ParseError(
             "There are still leftover tokens after reading a whole program.".to_string(),
         ))
@@ -57,9 +58,18 @@ impl<'a> Parser<'a> {
         self.peek().map(|t| t.kind == kind).unwrap_or(false)
     }
 
-    fn eat(&self, kind: TokenKind) -> ParseResult<()> {
+    fn eat(&mut self, kind: TokenKind) -> bool {
         if self.next_is(kind) {
-            Ok(())
+            self.tokens.pop();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect(&mut self, kind: TokenKind) -> ParseResult<Token> {
+        if self.next_is(kind) {
+            self.next()
         } else if let Some(actual) = self.peek() {
             Err(ParseError(format!(
                 "Expected a token with kind {kind}, found a token with kind {} and text `{}`.",
@@ -73,21 +83,74 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_program(&mut self) -> ParseResult<Program> {
-        todo!()
+        let mut stmts = vec![];
+
+        while ! self.tokens.is_empty() {
+            stmts.push(self.parse_stmt()?);
+        }
+
+        Ok(Program { stmts })
     }
 
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
-        todo!()
+        let tok = self.next()?;
+        match tok.kind {
+            TokenKind::Assign => {
+                let lhs = id(self.expect(TokenKind::Id)?.text);
+                let rhs = self.parse_expr()?;
+                Ok(Stmt::Assign(lhs, rhs))
+            },
+            TokenKind::Print => Ok(Stmt::Print(self.parse_expr()?)),
+            TokenKind::Read => Ok(Stmt::Read(id(self.expect(TokenKind::Id)?.text))),
+            TokenKind::If => {
+                let guard = self.parse_expr()?;
+                let tt = self.parse_block()?;
+                let ff = self.parse_block()?;
+                Ok(Stmt::If { guard, tt, ff })
+            },
+            _ => Err(ParseError(format!("Expected start of a statement, found {}", tok.text)))
+        }
+    }
+
+    fn parse_block(&mut self) -> ParseResult<Vec<Stmt>> {
+        let mut stmts = vec![];
+
+        self.expect(TokenKind::LBrace)?;
+        while ! self.eat(TokenKind::RBrace) {
+            stmts.push(self.parse_stmt()?);
+        }
+
+        Ok(stmts)
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
-        todo!()
+        use Expr::*;
+
+        let tok = self.next()?;
+
+        match tok.kind {
+            TokenKind::Id => Ok(Var(id(tok.text))),
+            TokenKind::Num => Ok(Const(tok.text.parse().unwrap())),
+            TokenKind::Plus => self.parse_binop(BOp::Add),
+            TokenKind::Minus => self.parse_binop(BOp::Sub),
+            TokenKind::Mul => self.parse_binop(BOp::Mul),
+            TokenKind::Div => self.parse_binop(BOp::Div),
+            TokenKind::Lt => self.parse_binop(BOp::Lt),
+            TokenKind::Tilde => Ok(Negate(Box::new(self.parse_expr()?))),
+            _ => Err(ParseError(format!("Expected start of a statement, found {}", tok.text)))
+        }
+    }
+
+    // helper: read and parse both sides of given binary operation
+    fn parse_binop(&mut self, op: BOp) -> ParseResult<Expr> {
+        let lhs = Box::new(self.parse_expr()?);
+        let rhs = Box::new(self.parse_expr()?);
+        Ok(Expr::BinOp { op, lhs, rhs })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::common::id;
     use super::*;
     use BOp::*;
     use Expr::*;
